@@ -1,0 +1,1764 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+
+<style>
+ .polygons {
+	 fill: none;
+	 stroke: #000;
+ }
+</style>
+
+<body>
+<link href="stylesheet.css" rel="stylesheet" type="text/css">
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script type="text/javascript" src="d3.v3.min.js"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js" charset="utf-8"></script>
+<script type="text/javascript" src="jquery.min.js"></script>
+<script type="text/javascript" src="jquery.tipsy.js"></script>
+    
+    
+<!--<p id="menu" class="menuchoice"> Select series: 
+	<select>
+		<option value="val1">Value 1</option>
+		<option value="val2">Value 2</option>
+		<option value="val3">Value 3</option>
+		<option value="val4">Value 4</option>
+    </select>
+</p>-->
+
+
+
+<div id="brain"> </div>            
+<div id="graphic">  </div>
+
+<script>
+//position data
+var posData = [] ;
+//dynamic FU color
+var DynFuColor = [];
+//dynamic FU index
+var DynFuInd = []; 
+//set partial FU map flag
+var partialFuOn = true; 
+
+//set the margins
+var margin = {top: 50, right: 160, bottom: 80, left: 50},
+    width = 1400 - margin.left - margin.right,
+    height = 500 - margin.top - margin.bottom;
+
+// set the type of number here, n is a number with a comma, .2% will get you a percent, .2f will get you 2 decimal points
+var NumbType = d3.format(".2f");
+
+/***************************************************************/
+//brainInfo
+var brainInfo = [];
+//partial FU information
+var PfInfo = [];
+//timelineInfo 
+var timelineInfo = [];
+//timelinePartialFuInfo
+var timelinePFInfo = [];
+//timelineInfo for Partial FU
+var timelineInfoPF
+//time legend information
+var timeLegendInfo = [];
+//roi legend information
+var roiLegendInfo = [];
+//dynamic FU information
+var dynFuLegendInfo = [];
+
+//DynFuColor
+var DynFuColor = readTextFile("eleDynFuColor.txt") ;
+var DynFuColor = DynFuColor.split("\n") ;
+for(var i = 0; i < DynFuColor.length; i++)
+{
+	DynFuColor[i] = DynFuColor[i].split(","); 
+}
+
+//Dynamic FU index
+var DynFuInd = readTextFile("eleDynFuInd.txt");
+var DynFuInd = DynFuInd.split("\n");
+for(var i=0; i<DynFuInd.length; i++)
+{
+	DynFuInd[i] = DynFuInd[i].split(",");
+}
+
+//Dynamic electrode position
+var EleDynPos = readTextFile("eleDynPos.txt");
+    EleDynPos = EleDynPos.split("\n");
+for(var i=0; i<EleDynPos.length; i++)
+{
+	EleDynPos[i] = EleDynPos[i].split(",");
+}
+
+//dynamic electrode position partial FUmap
+var ElePFDynPos = readTextFile("elePFDynPos.txt");
+    ElePFDynPos = ElePFDynPos.split("\n");
+for(var i=0; i<ElePFDynPos.length; i++)
+{
+	ElePFDynPos[i] = ElePFDynPos[i].split(",");
+}
+
+//partial Dynamic Fu 
+var pfDynFuIndx = readTextFile("partialDynFu.txt");
+	pfDynFuIndx = pfDynFuIndx.split("\n");
+	for(var i=0; i<pfDynFuIndx.length; i++)
+	{
+		pfDynFuIndx[i] = parseFloat(pfDynFuIndx[i].split(","));
+	}
+
+//partial FU time step
+var pfTimestep = readTextFile("partialFuTime.txt");
+    pfTimestep = pfTimestep.split("\n");
+	for(var i=0; i<pfTimestep.length; i++)
+	{
+		pfTimestep[i] = parseFloat(pfTimestep[i].split(","));
+	}
+
+//Electrode voronoin
+var EleVoronoi = readTextFile("eleVoroDiagram.txt");
+    EleVoronoi = EleVoronoi.split("\n");
+
+//partial FUmap scale
+var scaleVoronoiDiagram = readTextFile("scaleVoronoiDiagram.txt") ;
+    scaleVoronoiDiagram = scaleVoronoiDiagram.split("\n");
+
+//partial FU
+var partialFu = readTextFile("partialFU.txt");
+    partialFu = partialFu.split("\n");
+/***************************************************************/
+
+//define the approx. number of x scale ticks
+var xscaleticks = 0;
+
+//defines a function to be used to append the title to the tooltip.  you can set how you want it to display here.
+var maketip = function (d) {			               
+			   var tip = '<p class="tip3">' + d.name + '<p class="tip1">' + NumbType(d.value) + '</p> <p class="tip3">'+  formatDate(d.x)+'</p>';
+      		   return tip;}
+				       		   
+//create an brain voronoi diagram
+var brainSvg = d3.select("#brain").append("svg")	 
+                 .attr("width", width)				 
+				 .attr("height", height/2)
+				 .attr("id", "brainsvg");
+
+//create an SVG
+var svg = d3.select("#graphic").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+    .append("g")
+	.attr("id", "timelineRep");
+	//.attr("transform", "translate(" + margin.left + "," + 0 + ")"); 
+	//.attr("transform", "translate(" + margin.left + "," + margin.top + ")"); 
+
+height += margin.bottom ;
+width  += margin.left ;   
+    
+/*// force data to update when menu is changed    
+var menu = d3.select("#menu select")
+    .on("change", change);  */  
+			    
+//suck in the data, store it in a value called formatted, run the redraw function
+d3.csv("eleStaticInfo.csv", function(data) {
+									formatted = data;
+							        redraw();
+    							  });
+
+// all the meat goes in the redraw function
+function redraw() { 
+	//make a rectangle so there is something to click on
+	svg.append("svg:rect")
+		.attr("width", width)
+		.attr("height", height)
+		.attr("class", "plot");
+
+	//make a clip path for the graph  
+	var clip = svg.append("svg:clipPath")
+		.attr("id", "clip")
+		.append("svg:rect")
+		.attr("x", 0)
+		.attr("y", 0)
+		.attr("width", width)
+		.attr("height", height);	
+
+	//generate the basic data structure
+	generateBaseData(); 
+
+	//draw brain voronoi diagram	
+	drawBrainDiagram();
+
+	//create the time legend
+    createTimeLegend() ;
+
+    //create the ROI legend;
+    createRoiLegend();
+
+	//setup the timeline x and y scales
+	/******************************************************************************************************/
+	if(partialFuOn)
+	{
+		var x = d3.time.scale()
+			.domain([
+				d3.min(timelinePFInfo, function(c) { return d3.min(c.pos, function(v) { return v.x; }); }),
+				d3.max(timelinePFInfo, function(c) { return d3.max(c.pos, function(v) { return v.x; }); })
+			])
+			.range([5, width-5]);
+
+		var y = d3.scale.linear()
+			.domain([
+				d3.min(timelinePFInfo, function(c) { return d3.min(c.pos, function(v) { return v.y; }); }),
+				d3.max(timelinePFInfo, function(c) { return d3.max(c.pos, function(v) { return v.y; }); })
+			])
+			.range([height-15, 5]);					
+	}
+	else
+	{
+		var x = d3.time.scale()
+			.domain([
+				d3.min(timelineInfo, function(c) { return d3.min(c.pos, function(v) { return v.x; }); }),
+				d3.max(timelineInfo, function(c) { return d3.max(c.pos, function(v) { return v.x; }); })
+			])
+			.range([5, width-5]);
+
+		var y = d3.scale.linear()
+			.domain([
+				d3.min(timelineInfo, function(c) { return d3.min(c.pos, function(v) { return v.y; }); }),
+				d3.max(timelineInfo, function(c) { return d3.max(c.pos, function(v) { return v.y; }); })
+			])
+			.range([height-5, 5]);			
+	}
+	 
+   /******************************************************************************************************/
+
+	//make an empty variable to stash the last values into so i can sort the legend
+	var lastvalues=[];
+	//will draw the line
+	var line = d3.svg.line()
+		.x(function(d) { return x(d.x); })
+		.y(function(d) { return y(d.y); });	
+
+
+	//define the zoom
+	var zoom = d3.behavior.zoom()
+    	.x(x)
+	    .y(y)
+	    .scaleExtent([1, 8])
+    	.on("zoom", zoomed);
+
+
+	//call the zoom on the SVG
+   svg.call(zoom);
+
+	//create and draw the x axis
+	var xAxis = d3.svg.axis()
+    	.scale(x)
+	    .orient("bottom")
+    	.tickPadding(8)
+	    .ticks(xscaleticks);
+    
+    svg.append("svg:g")
+	    .attr("class", "x axis");
+
+	//create and draw the y axis                  
+	var yAxis = d3.svg.axis()
+    	.scale(y)
+	    .orient("left")
+    	.tickSize(0-width)
+	    .tickPadding(8);
+    
+    svg.append("svg:g")
+    	.attr("class", "y axis");
+
+
+/****************************************************************************************************************/
+//draw timeline representation 
+	//bind the data
+	if(partialFuOn)
+	{
+		var thegraph = svg.selectAll(".thegraph").data(timelinePFInfo.concat(PfInfo)) ;
+	}
+	else
+	{
+		var thegraph = svg.selectAll(".thegraph").data(timelineInfo) ;
+	}
+	
+
+		if(partialFuOn)
+		{
+		//append a g tag for each line and set of tooltip circles and give it a unique ID based on the column name of the data
+		var thegraphEnter=thegraph.enter().append("g")
+			.attr("clip-path", "url(#clip)")	
+			.attr("class", function(d){
+					var multiClass = "timeline voronoi " ;
+					multiClass += ("roiIndx" + d.roiIndx); 
+					multiClass += " ";
+					multiClass += ("timestep" + d.timestep); 
+					multiClass += " ";
+					multiClass += ("eleLabel" + d.label) ;
+					multiClass += " ";
+					multiClass += ( "dynFu" + d.dynFu );
+					multiClass += " ";
+					multiClass +=  d.type; 
+
+					return multiClass;
+				})
+			//.attr('id', function(d){ })
+			.style("stroke-width", function(d) {
+					if(d.type == "straight") {return 4;}
+					if(d.type == "trans") {return 2;}
+					if(d.type == "voronoi")
+					{
+						if(d.on==1) 
+						{return 4;}
+						else
+						{return 0.5; }
+
+					}
+				})	
+			.on("mouseover", function(d) {timelineMouseOver(d);} )	
+			.on("mouseout", function(d) {timelineMouseOut(d);} )
+
+			//actually append the line to the graph
+			thegraphEnter.append("path")
+				.attr("class", "line polygons")	 
+				.attr("d", function(d) { 
+						if(d.type=="voronoi")
+						{ 
+							var pathLine = "M" ;
+							var d = d.voroPath ; 
+							var meanX = d3.mean(d, function(v) {return v.x; });			   
+							meanX = x(parseFloat(meanX));			   
+							var meanY = d3.mean(d, function(v) {return v.y; });
+							meanY = y(parseFloat(meanY));
+
+							for(var i=0; i<d.length; i++)
+							{
+								var num = x(d[i].x);
+								pathLine += num.toString();
+								pathLine += " ";
+								num = y(d[i].y); 
+								pathLine += num.toString(); 
+
+								if(i== (d.length-1))
+								{
+									pathLine += "z";
+								}
+								else{
+									pathLine += "L";
+								}
+							}
+
+							return pathLine;
+						}
+						else
+						{return line(d.pos); }
+					})	
+				.style("stroke", function(d) { 
+						if(d.type=="voronoi")
+						{
+							if(d.on==1)
+							{return "black";}
+							else
+							{return "black";}
+						}
+						else
+					return d.color.roi;})
+				.style("fill", function(d) { 
+						if(d.type=="voronoi")
+						{
+							if(d.on==1)
+							{return "black";}
+							else
+							{return "white";}
+						}
+						else
+						{return d.color.roi;}
+					})			
+				.style("opacity", function(curLine) { return (curLine.dynFu==0)? 0.5:1; })
+		}
+		else
+		{
+		//append a g tag for each line and set of tooltip circles and give it a unique ID based on the column name of the data
+		var thegraphEnter=thegraph.enter().append("g")
+			.attr("clip-path", "url(#clip)")	
+			.attr("class", function(d){
+					var multiClass = "timeline " ;
+					multiClass += ("roiIndx" + d.roiIndx); 
+					multiClass += " ";
+					multiClass += ("timestep" + d.timestep); 
+					multiClass += " ";
+					multiClass += ("eleLabel" + d.label) ;
+					multiClass += " ";
+					multiClass += ( "dynFu" + d.dynFu );
+					multiClass += " ";
+					multiClass +=  d.type; 
+
+					return multiClass;
+				})
+			//.attr('id', function(d){ })
+			.style("stroke-width", function(d) { return (d.type == "straight")? 4:2 ;} )
+			.on("mouseover", function(d) {timelineMouseOver(d);} )	
+			.on("mouseout", function(d) {timelineMouseOut(d);} )
+
+			//actually append the line to the graph
+			thegraphEnter.append("path")
+				.attr("class", "line")	
+				.attr("d", function(d) {return line(d.pos); }) 
+				.style("stroke", function(d) { return d.color.roi; } )
+				.style("opacity", function(curLine) { return (curLine.dynFu==0)? 0.5:1; })
+				.transition()
+				.duration(2000)
+				.attrTween('d',function (d){
+					var interpolate = d3.scale.quantile()
+						.domain([0,1])
+						.range(d3.range(1, d.pos.length+1));
+					return function(t){ return line(d.pos.slice(0, interpolate(t))); };
+				});
+		}
+		
+/*      	.transition()
+      	.duration(2000)
+      	.attrTween('d',function (d){
+			var interpolate = d3.scale.quantile()
+				.domain([0,1])
+				.range(d3.range(1, d.pos.length+1));
+			return function(t){ return line(d.pos.slice(0, interpolate(t))); };
+		});*/
+/***************************************************************************/	     
+  
+	//then append some 'nearly' invisible circles at each data point  
+/*	thegraph.selectAll("circle")
+		.data( function(d) {return(d.value);} )
+		.enter()
+		.append("circle")
+			.attr("class","tipcircle")
+			.attr("cx", function(d,i){return x(d.x)})
+			.attr("cy",function(d,i){return y(d.y)})
+			.attr("r",12)
+			.style('opacity', 1e-6)//1e-6
+			.attr ("title", maketip);*/
+/*	thegraph.selectAll("circle")
+		.data( function(d) {return(d.pos[0]);} )
+		.enter()
+		.append("circle")
+			.attr("class","tipcircle")
+			.attr("cx", function(d,i){return x(d.x)})
+			.attr("cy",function(d,i){return y(d.y)})
+			.attr("r",12)
+			.style('opacity', 1e-6)
+			//.attr ("title", maketip);*/
+
+   //create the dynamic FU legend
+   createDynFuLegend();
+
+ 	// set variable for updating visualization
+    var thegraphUpdate = d3.transition(thegraph);
+    
+/*    // change values of path and then the circles to those of the new series
+    thegraphUpdate.select("path")
+    	   .attr("d", function(d, i) {
+			   //must be a better place to put this, but this works for now
+			   lastvalues[i]=d.pos[d.pos.length-1].value;  
+			   lastvalues.sort(function (a,b){return b-a});
+			   /*legendscale.domain(lastvalues);*/
+//			   return line(d.pos); 
+//			});*/
+      
+
+ 	 // update the axes,   
+    d3.transition(svg).select(".y.axis")
+    	.call(yAxis);   
+          
+    d3.transition(svg).select(".x.axis")
+    	.attr("transform", "translate(0," + height + ")")
+        .call(xAxis);
+
+
+	//define the zoom function
+	function zoomed() { 
+    	svg.select(".x.axis").call(xAxis);
+    	svg.select(".y.axis").call(yAxis);
+
+		svg.selectAll(".tipcircle")
+			.attr("cx", function(d,i){return x(d.x)})
+			.attr("cy",function(d,i){return y(d.y)});
+			
+		svg.selectAll(".line")
+    		.attr("class","line")
+			.attr("d", function(d) {
+				if(d.type=="voronoi")
+				{ 
+					var pathLine = "M" ;
+					var d = d.voroPath ; 
+
+					for(var i=0; i<d.length; i++)
+					{
+						var num = x(d[i].x);
+
+						pathLine += num.toString();
+						pathLine += " ";
+						num = y(d[i].y); 
+						pathLine += num.toString(); 
+
+						if(i== (d.length-1))
+						{
+							pathLine += "z";
+						}
+						else{
+							pathLine += "L";
+						}
+					}
+					return pathLine;
+				}
+				else
+				{return line(d.pos); }
+			})
+	}	
+//end of the redraw function
+}
+
+
+//new definition
+/************************************************************************************/
+//read text file
+function readTextFile(file)
+{
+    var allText = [] ;
+    var rawFile = new XMLHttpRequest();
+    rawFile.open("GET", file, false);
+    rawFile.onreadystatechange = function ()
+    {
+        if(rawFile.readyState === 4)
+        {
+            if(rawFile.status === 200 || rawFile.status == 0)
+            {   
+              allText = rawFile.responseText;                
+            }
+        }
+    }
+    rawFile.send(null);    
+
+    return allText ; 
+}
+
+//generate basic data structure
+function generateBaseData(){
+	//electrode labels 
+	var eleLabel = d3.keys( formatted[0] ) ;
+	eleLabel.splice(0, 1);
+	eleNum = eleLabel.length ; 
+
+	var timeStep =DynFuInd.length ;
+	var lineNum = eleNum * ( 2*timeStep - 1 ) ;
+	var dynFuNum = 0;
+	for(var i = 0; i<DynFuInd.length; i++)
+	{
+		var curStep = DynFuInd[i];
+		for(var j=0; j<curStep.length; j++)
+		{
+			if( dynFuNum < parseFloat(curStep[j]) )
+			{
+				dynFuNum = parseFloat(curStep[j]) ;
+			}
+		}
+	}
+
+	//construct brain voronoi diagram information
+	for(var i = 0; i < eleNum; i++)
+	{
+		brainInfo[i] = {
+			label: eleLabel[i],
+			roiIndx: parseFloat( formatted[0][eleLabel[i]] ),
+			color: { roi: formatted[2][eleLabel[i]], 
+			         dynFu: getEleDynFu(i)
+					},
+		    voroPath: construtPos(EleVoronoi[i]) 
+		};
+	}
+
+	//construct partial FU voronoi diagram information
+	tmp = 0;
+	for(var i=0; i<scaleVoronoiDiagram.length; i++)
+	{
+		var curTransform = scaleVoronoiDiagram[i];
+		curTransform = curTransform.split(",");
+		var curFuFlag = partialFu[i];
+		curFuFlag = curFuFlag.split(",");
+		for(var j=0; j<eleNum; j++)
+		{   curPath = 
+			PfInfo[tmp] = {
+				label: eleLabel[j],
+				timestep: pfTimestep[i],
+				dynFu: pfDynFuIndx[i],
+				on: curFuFlag[j],
+				type: "voronoi",
+				roiIndx: parseFloat( formatted[0][eleLabel[j]] ),
+				color: { roi: formatted[2][eleLabel[j]], 
+						 dynFu: getEleDynFu(j)						  
+						},
+				voroPath: construtPfPos(EleVoronoi[j], parseFloat(curTransform[0]), parseFloat(curTransform[1]), parseFloat(curTransform[2]), parseFloat(curTransform[3]))			
+			};
+			tmp += 1; 
+		}
+	}
+	
+	function getEleDynFu(m) {
+		var curDynFuColor = [];
+		for(var j=0; j<DynFuColor.length; j++)
+		{
+			curDynFuColor[j] = DynFuColor[j][m];
+		}
+		return curDynFuColor;
+	}
+	
+	//construct timeline data structure
+	/**********************************************************************/
+	var tmp = 0;
+	for(var i = 0; i < eleNum; i++)
+	{  
+		for(var j = 0; j < timeStep; j++)
+		{
+			if( j < timeStep-1 )
+			{
+				timelineInfo[tmp] = {label: eleLabel[i], 
+				                 timestep: j+1,
+							     type: "straight", 
+								 roiIndx: parseFloat( formatted[0][eleLabel[i]] ),
+								 dynFu: DynFuInd[j][i],
+								 color: { roi: formatted[2][eleLabel[i]], 
+								          dynFu: DynFuColor[j][i]} ,
+								 pos: [{ x: j*2, y: parseFloat(EleDynPos[j][i])}, 
+									   { x: j*2+1, y: parseFloat(EleDynPos[j][i])}]}; 
+				tmp = tmp + 1; 
+				timelineInfo[tmp] = {label: eleLabel[i], 
+				                 timestep: j+1,
+								 type: "trans", 
+								 roiIndx: parseFloat( formatted[0][eleLabel[i]] ),
+								 dynFu: parseFloat( DynFuInd[j][i] ),
+								 color: { roi: formatted[2][eleLabel[i]], 
+								          dynFu: DynFuColor[j][i]} ,
+								 pos: [{ x: j*2+1, y: parseFloat(EleDynPos[j][i])}, 
+									   { x: j*2+2, y: parseFloat(EleDynPos[j+1][i])}]};								 
+				tmp = tmp + 1;
+			}
+			else
+			{
+				timelineInfo[tmp] = {label: eleLabel[i], 
+				                 timestep: j+1,
+							     type: "straight", 
+								 roiIndx: parseFloat( formatted[0][eleLabel[i]] ),
+								 dynFu: DynFuInd[j][i],
+								 color: { roi: formatted[2][eleLabel[i]], 
+								          dynFu: DynFuColor[j][i]} ,
+								 pos: [{ x: j*2, y: parseFloat(EleDynPos[j][i])}, 
+									   { x: j*2+1, y: parseFloat(EleDynPos[j][i])}]};  
+				tmp = tmp + 1; 
+			}
+		}		
+	}
+	/*********************************************************************************/
+
+
+	/********************************************************************************/
+  //construct timeline with partial FU data structure
+	var tmp = 0; 
+	for(var i = 0; i < eleNum; i++)
+	{  
+		for(var j = 0; j < timeStep; j++)
+		{
+			if( j < timeStep-1 )
+			{
+				timelinePFInfo[tmp] = {label: eleLabel[i], 
+				                 timestep: j+1,
+							     type: "straight", 
+								 roiIndx: parseFloat( formatted[0][eleLabel[i]] ),
+								 dynFu: DynFuInd[j][i],
+								 color: { roi: formatted[2][eleLabel[i]], 
+								          dynFu: DynFuColor[j][i]} ,
+								 pos: [{ x: j*4, y: parseFloat(ElePFDynPos[j][i])}, 
+									   { x: j*4+0.5, y: parseFloat(ElePFDynPos[j][i])}]}; 
+				tmp = tmp + 1; 
+				timelinePFInfo[tmp] = {label: eleLabel[i], 
+				                 timestep: j+1,
+							     type: "straight", 
+								 roiIndx: parseFloat( formatted[0][eleLabel[i]] ),
+								 dynFu: DynFuInd[j][i],
+								 color: { roi: formatted[2][eleLabel[i]], 
+								          dynFu: DynFuColor[j][i]} ,
+								 pos: [{ x: j*4+1.5, y: parseFloat(ElePFDynPos[j][i])}, 
+									   { x: j*4+2, y: parseFloat(ElePFDynPos[j][i])}]}; 
+				tmp = tmp + 1;				
+				timelinePFInfo[tmp] = {label: eleLabel[i], 
+				                 timestep: j+1,
+								 type: "trans", 
+								 roiIndx: parseFloat( formatted[0][eleLabel[i]] ),
+								 dynFu: parseFloat( DynFuInd[j][i] ),
+								 color: { roi: formatted[2][eleLabel[i]], 
+								          dynFu: DynFuColor[j][i]} ,
+								 pos: [{ x: j*4+2, y: parseFloat(ElePFDynPos[j][i])}, 
+									   { x: j*4+4, y: parseFloat(ElePFDynPos[j+1][i])}]};								 
+				tmp = tmp + 1;
+			}
+			else
+			{
+				timelinePFInfo[tmp] = {label: eleLabel[i], 
+				                 timestep: j+1,
+							     type: "straight", 
+								 roiIndx: parseFloat( formatted[0][eleLabel[i]] ),
+								 dynFu: DynFuInd[j][i],
+								 color: { roi: formatted[2][eleLabel[i]], 
+								          dynFu: DynFuColor[j][i]} ,
+								 pos: [{ x: j*4, y: parseFloat(ElePFDynPos[j][i])}, 
+									   { x: j*4+0.5, y: parseFloat(ElePFDynPos[j][i])}]}; 
+				tmp = tmp + 1; 
+				timelinePFInfo[tmp] = {label: eleLabel[i], 
+				                 timestep: j+1,
+							     type: "straight", 
+								 roiIndx: parseFloat( formatted[0][eleLabel[i]] ),
+								 dynFu: DynFuInd[j][i],
+								 color: { roi: formatted[2][eleLabel[i]], 
+								          dynFu: DynFuColor[j][i]} ,
+								 pos: [{ x: j*4+1.5, y: parseFloat(ElePFDynPos[j][i])}, 
+									   { x: j*4+2, y: parseFloat(ElePFDynPos[j][i])}]}; 
+				tmp = tmp + 1;
+			}
+		}		
+	}
+	/********************************************************************************/
+}
+
+function drawBrainDiagram() 
+{
+	//setup the x- and y-voronoi scales
+	var xVoroScale = d3.scale.linear()
+		 .domain([
+			 d3.min(brainInfo, function(c) {return d3.min(c.voroPath, function(v) {return v.x}); }),
+			 d3.max(brainInfo, function(c) {return d3.max(c.voroPath, function(v) {return v.x}); })
+		   ])
+		 .range([width/3, width/3 + height/2]);
+ 	 
+     var yVoroScale = d3.scale.linear()
+	     .domain([
+			 d3.min(brainInfo, function(c) {return d3.min(c.voroPath, function(v) {return v.y}); }),
+			 d3.max(brainInfo, function(c) {return d3.max(c.voroPath, function(v) {return v.y}); })
+		 ])
+		 .range([height/2-50, 0]);	
+
+	/*************************************************************************************/	 
+	brainSvg.append("g").append("text")
+	        .attr("x", width/3).attr("y", height/2-50)
+			.text("<LEFT")
+			.style("font-family", "Verdana")
+			.style("text-anchor", "start");
+	brainSvg.append("g").append("text")
+	        .attr("x", width/3 + 0.4*height).attr("y", height/2-50)
+			.text("RIGHT>")
+			.style("font-family", "Verdana")
+			.style("text-anchor", "start");
+	brainSvg.append("g").append("text")
+	        .attr("x", width/3-100).attr("y", height/2-50)
+			.text("POSTERIOR")
+			.style("font-family", "Verdana")
+			.style("text-anchor", "start");
+	brainSvg.append("g").append("text")
+	        .attr("x", width/3-80).attr("y", 20)
+			.text("ANTERIOR")
+			.style("font-family", "Verdana")
+			.style("text-anchor", "start");
+
+
+
+	brainSvg.append("g")
+	   .attr("class", "dynFuLegendButton polygons " )
+		.attr("id", "dynFuLegendButton")
+		.append("rect")
+		.attr("x", 80)
+		.attr("y", height/4-20)
+		.attr("width", 80)
+		.attr("height", 40)
+		.attr("fill", "red")
+		.on("click", function() {
+				partialFuOn = !partialFuOn; 
+				if(partialFuOn)
+				{
+					$("#brainsvg").empty();
+					$("#timelineRep").empty();
+					redraw();	
+				}
+				else
+				{
+					$("#brainsvg").empty();	
+					$("#timelineRep").empty();								
+					redraw();				  
+				}
+			})
+
+	brainSvg.append("g")
+	   .attr("class", "dynFuLegendButton polygons " )
+		.attr("id", "dynFuLegendButtonText")
+		.append("text")
+		.attr("x", 50)
+		.attr("y", height/4-30)
+		.attr("fill", "black")
+		.on("click", function() {
+				partialFuOn = !partialFuOn; 
+				if(partialFuOn)
+				{
+					$("#brainsvg").empty();
+					$("#timelineRep").empty();
+					redraw();	
+				}
+				else
+				{
+					$("#brainsvg").empty();	
+					$("#timelineRep").empty();								
+					redraw();				  
+				}
+			})		
+		.text("ChangeRepresentation")	
+		.style("font-size", "25px")
+		.style("fill", "black")	
+
+
+
+	//Inner cell
+	var polygonBrainOuter = brainSvg.append("g")
+	     .attr("class", "polygons")
+		 .selectAll("path")
+		 .data(brainInfo)
+		 .enter()
+		 .append("path")
+		 .attr("class", function(d) {
+			 var multiClass = "" ;
+			 multiClass += "roiIndx";
+			 multiClass += d.roiIndx ; 
+			 multiClass += " ";
+
+			 multiClass += "voronoi";
+			 multiClass += " ";
+
+			 multiClass += "outerVoronoi";
+
+			 return multiClass;
+			 })
+		 .attr("fill", function(d) {return d.color.roi ; })	 
+		 .attr("d", function(data) { 
+			 var pathLine ="M";
+			 var d = data.voroPath ; 
+			 
+		     for(var i=0; i<d.length; i++)   
+			 {
+				 var num = xVoroScale(d[i].x) ;
+				 pathLine = pathLine + num.toString();
+				 pathLine = pathLine + " ";
+
+				 var num = yVoroScale(d[i].y);
+				 pathLine = pathLine + num.toString() ;
+				 
+				 if( i == d.length-1 )
+				 {
+					 pathLine = pathLine + "z";
+				 }
+				 else
+				 {
+					 pathLine = pathLine + "L" ;
+				 }
+			 }			 
+			 return pathLine; })		 
+		 .on("mouseover", function(d) {
+			 	 var curEle = d.label ;
+
+				 //set the brain voronoi diagram
+				 var selectRoi = $( ".outerVoronoi" ).not(this);
+				 d3.selectAll(selectRoi)   //select all the rest of the lines, except the one you are hovering on and drop their opacity
+				   .style("opacity",0.15);
+
+				 //set the timeline representation
+				 var selectTimeline = $( ".timeline" );
+				 d3.selectAll(selectTimeline)
+				   .filter( function(curLine) { 
+						if(partialFuOn)
+						{ if(curLine.label == curEle && curLine.on==1)
+							{return false;}
+							else
+							{return true; }
+						}
+						else
+						{return (curLine.label == curEle)? false:true;}
+					    })	
+				   .selectAll("path")			   
+				   .style("opacity", 0.15);
+				   
+				 d3.selectAll(selectTimeline)
+				   .filter( function(curLine) { return (curLine.label == curEle)? true:false; } )	
+				   .selectAll("path")	
+				   .style("opacity", 1)		   
+				   .style("stroke-width", "6px");
+
+				  //set roi legend
+				  var selectRoiLgend = (".roiLegend");
+				  d3.selectAll(selectRoiLgend)
+					.filter(function(curRoiLegend) {return (curRoiLegend.roiIndx == d.roiIndx)? false:true; })
+					.style("opacity", 0.15);
+		     })
+		 .on("mouseout", function(d) {
+			 	 var curEle = d.label ;
+
+				 //set the brain voronoi diagram
+				 var selectRoi = $( ".voronoi" ).not(this);
+				 d3.selectAll(selectRoi)   //select all the rest of the lines, except the one you are hovering on and drop their opacity
+				   .style("opacity", 1);
+
+				 //set the timeline representation
+				 var selectTimeline = $( ".timeline" );
+				 d3.selectAll(selectTimeline)
+				   .filter( function(curLine) { 
+						if(partialFuOn)
+						{ if(curLine.label == curEle && curLine.on==1)
+							{return false;}
+							else
+							{return true; }
+						}
+						else
+						{return (curLine.label == curEle)? false:true;}
+					    })	
+				   .selectAll("path")
+				   .style("opacity", function(curLine) { return (curLine.dynFu==0)? 0.5:1; });
+
+				 d3.selectAll(selectTimeline)
+				   .selectAll("path")
+				   .style("stroke-width", function(curLine) {
+							if(d.type=="straight") {return 4;}
+							if(d.type=="trans") {return 2;}
+							if(d.type=="voronoi")
+							{
+								if(d.on==1)
+								{return 4;}
+								else
+								{return 0.5;}
+							}
+					   })		
+
+				  //set roi legend
+				  var selectRoiLgend = (".roiLegend");
+				  d3.selectAll(selectRoiLgend)
+					.filter(function(curRoiLegend) {return (curRoiLegend.roiIndx == d.roiIndx)? false:true; })
+					.style("opacity", 1);				   		   
+		    })
+	/*************************************************************************************/	 
+
+	/*************************************************************************************/	 		
+	  var polygonBrainInner = brainSvg.append("g")
+	     .attr("class", "polygons")		 
+		 .selectAll("path")
+		 .data(brainInfo)
+		 .enter()
+		 .append("path")
+		 .style("visibility", "hidden")		 		 
+		 .attr("class", function(d) {
+			 var multiClass = "" ;
+			 multiClass += "roiIndx";
+			 multiClass += d.roiIndx ; 
+			 multiClass += " ";
+
+			 multiClass += "voronoi";
+			 multiClass += " ";
+
+			 multiClass += "innerVoronoi";
+
+			 return multiClass ;
+			 })
+		 .attr("d", function(data) { 
+			   var pathLine ="M";
+			   var d = data.voroPath ; 
+			   var meanX = d3.mean(d, function(v) {return v.x; } ) ;
+			   meanX = xVoroScale(meanX);
+			   var meanY = d3.mean(d, function(v) {return v.y; } ) ;
+			   meanY = yVoroScale(meanY) ;
+			   
+			   for(var i=0; i<d.length; i++)   
+			   {
+				   var num = xVoroScale(d[i].x) ;
+				   num = num/2 + meanX/2;
+				   
+				   pathLine = pathLine + num.toString();
+				   pathLine = pathLine + " ";
+				   
+				   var num = yVoroScale(d[i].y);
+				   num = num/2 + meanY/2;
+				   pathLine = pathLine + num.toString() ;
+				   
+				   if( i == d.length-1 )
+				   {
+					   pathLine = pathLine + "z";
+					}
+					else
+					{
+						pathLine = pathLine + "L" ;
+					}
+				}
+				return pathLine;})
+		/*************************************************************************************/	 
+}
+	
+//construction position 
+function construtPos(d)
+{ 
+	var posData = [];
+	var curPolyData = d.split(",");
+	for(var i=0; i<curPolyData.length/2; i++)
+	{
+		posData[i] = { x:parseFloat(curPolyData[i*2]), y:parseFloat(curPolyData[i*2+1])} ;
+	}
+
+	return posData ; 
+}
+
+
+function construtPfPos(d, xscale, xtransition, yscale, ytransition)
+{
+	var posData = [];
+	var curPolyData = d.split(",");
+	for(var i=0; i<curPolyData.length/2; i++)
+	{
+		posData[i] = { x:parseFloat(curPolyData[i*2])*xscale+xtransition, 
+		               y:parseFloat(curPolyData[i*2+1])*yscale+ytransition} ;
+	}
+
+	return posData ; 
+}
+
+
+//extract position of voronoi
+function createVoronoiPath(d)
+{
+	var curPolyData = d.split(",");
+	var pathPoly = "M";
+	for(var i = 0; i<curPolyData.length/2; i++)
+	{
+		var num = curPolyData[j*2];
+		pathPoly = pathPoly + num.toString() ;
+		pathPoly = pathPoly + " " ;
+
+		var num = curPolyData[j*2+1] ;
+		pathPoly = pathPoly + num.toString() ;
+
+		if( i == (curPolyData.length/2 -1))
+		{
+			pathPoly = pathPoly + "z" ;
+		}
+		else
+		{
+			pathPoly = pathPoly + "L";
+		}
+	}
+
+	return pathPoly ; 
+}
+
+
+function timelineMouseOver( d )
+{		if(partialFuOn) 
+		{
+			if( ((d.type == "straight")|| d.type=="voronoi") && (d.dynFu != 0 ) )
+			{ 
+				var curDynFu = d.dynFu ; 
+				curDynFu = curDynFu.toString() ;
+
+				//set dynamic FU legend
+				var selectDynFuLegend = $(".dynFuLegend");
+				d3.selectAll(selectDynFuLegend)
+				  .filter(function(d) { return (curDynFu==d.Indx)? false:true; })
+				  .style("opacity", 0.15);
+			
+				//set timeline representation
+				var selectTimeline = $( ".timeline" );
+				d3.selectAll(selectTimeline)
+				.filter( function(curLine) { return (curLine.dynFu == curDynFu)? false:true; } )
+				.selectAll("path")
+				.style("opacity", 0.1);
+
+				d3.selectAll(selectTimeline)
+				.filter( function(curLine) { return ((curLine.dynFu == curDynFu)&&(curLine.type!="voronoi"))? true:false; } )
+				.selectAll("path")
+				.style("stroke-width", '5px');
+
+				//set legend
+				var selectCurDynFu = $(".dynFuLegend");
+				d3.selectAll(selectCurDynFu)
+				.filter( function(d) { return (d.Indx ==curDynFu)? false:true ;})
+				.selectAll("circle")
+				.style("opacity", 0.1); 
+			}			
+		}
+		else
+		{
+			if( (d.type == "straight") && (d.dynFu != 0 ) )
+			{ 
+				var curDynFu = d.dynFu ; 
+				curDynFu = curDynFu.toString() ;
+
+				//set dynamic FU legend
+				var selectDynFuLegend = $(".dynFuLegend");
+				d3.selectAll(selectDynFuLegend)
+				  .filter(function(d) { return (curDynFu==d.Indx)? false:true; })
+				  .style("opacity", 0.15);				
+			
+				//set timeline representation
+				var selectTimeline = $( ".timeline" );
+				d3.selectAll(selectTimeline)
+				.filter( function(curLine) { return (curLine.dynFu == curDynFu)? false:true; } )
+				.selectAll("path")
+				.style("opacity", 0.1);
+
+				d3.selectAll(selectTimeline)
+				.filter( function(curLine) { return (curLine.dynFu == curDynFu)? true:false; } )
+				.selectAll("path")
+				.style("stroke-width", '5px');
+
+				//set legend
+				var selectCurDynFu = $(".dynFuLegend");
+				d3.selectAll(selectCurDynFu)
+				.filter( function(d) { return (d.Indx ==curDynFu)? false:true ;})
+				.selectAll("circle")
+				.style("opacity", 0.1); 
+			}			
+		}
+
+		/***********************************************************************************************/
+}
+
+function timelineMouseOut(d)
+{
+	if(partialFuOn)
+	{
+		if( ((d.type == "straight")|| d.type=="voronoi") && (d.dynFu != 0 ) )
+		{
+			var curDynFu = d.dynFu ; 
+			curDynFu = curDynFu.toString() ;
+			
+			//set dynamic FU legend
+			var selectDynFuLegend = $(".dynFuLegend");
+			d3.selectAll(selectDynFuLegend)
+			  .style("opacity", 1);			
+
+			//set timeline representation
+			/*********************************************************************************/
+			var selectTimeline = $( ".timeline" );
+			d3.selectAll(selectTimeline)
+			.filter( function(curLine) { return (curLine.dynFu == curDynFu)? false:true; } )
+			.selectAll("path")
+			.style("opacity", 1);
+
+			d3.selectAll(selectTimeline)
+			.filter( function(curLine) { return (curLine.dynFu == curDynFu)? true:false; } )
+			.selectAll("path")
+			.style("stroke-width", function(d) { 
+					if(d.type == "straight") {return 4;}
+					if(d.type == "trans") {return 2;}
+					if(d.type == "voronoi")
+					{
+						if(d.on==1)
+						{return 4;}
+						else
+						{return 0.5;}
+					}
+				})
+			/*********************************************************************************/
+			
+			//set legend
+			var selectCurDynFu = $(".dynFuLegend");
+			d3.selectAll(selectCurDynFu)
+			  .filter( function(d) { return (d.Indx ==curDynFu)? false:true ;})
+			  .selectAll("circle")
+			  .style("opacity", 1); 	  
+		}
+	}
+	else
+	{
+		if( (d.type == "straight") && (d.dynFu != 0 ) )
+		{
+			var curDynFu = d.dynFu ; 
+			curDynFu = curDynFu.toString() ;
+
+			//set dynamic FU legend
+			var selectDynFuLegend = $(".dynFuLegend");
+			d3.selectAll(selectDynFuLegend)
+			  .style("opacity", 1);				
+
+			//set timeline representation
+			/*********************************************************************************/
+			var selectTimeline = $( ".timeline" );
+			d3.selectAll(selectTimeline)
+			.filter( function(curLine) { return (curLine.dynFu == curDynFu)? false:true; } )
+			.selectAll("path")
+			.style("opacity", 1);
+
+			d3.selectAll(selectTimeline)
+			.filter( function(curLine) { return (curLine.dynFu == curDynFu)? true:false; } )
+			.selectAll("path")
+			.style("stroke-width", function(d) { return (d.type == "straight")? 4:2 ;} )
+			/*********************************************************************************/
+			
+			//set legend
+			var selectCurDynFu = $(".dynFuLegend");
+			d3.selectAll(selectCurDynFu)
+			  .filter( function(d) { return (d.Indx ==curDynFu)? false:true ;})
+			  .selectAll("circle")
+			  .style("opacity", 1); 	  
+		}
+	}
+}
+
+function createTimeLegend() 
+{
+	var timeNum = DynFuInd.length ;
+	tmp =0;
+	for(var i=0; i<timeNum; i++)
+	{
+		if( i < (timeNum-1) )
+		{
+			timeLegendInfo[tmp] = {
+				type: "straight",
+				timestep: i
+			};
+			tmp += 1; 
+			
+			timeLegendInfo[tmp] = {
+				type: "trans",
+				timestep: i
+			};
+			tmp += 1; 
+		}
+		else
+		{
+			timeLegendInfo[tmp] = {
+				type: "straight",
+				timestep: i
+			};	
+			tmp += 1; 		
+		}
+	}
+
+	svg.append("g").selectAll(".legend")
+	   .data(timeLegendInfo)
+	   .enter().append("g")
+	   .attr("class", function() { return "legend polygons " + "timeLegend"; })
+	   .attr("id", function(d) {return "timestep" + d.Indx})
+	   .append("rect")
+	   .attr("fill", function(d){ return (d.type=="straight")? "blue":"white"; })
+	   .attr("x", function(d, i) { 
+				 return i*width/(2*timeNum-1); 
+			 })
+	   .attr("y", height+5)
+	   .attr("width", width/(2*timeNum-1))
+	   .attr("height", 20)
+	   .on("mouseover", function(d, i) { 
+		   var curTimestep = Math.ceil(i/2);
+			 if( d.type=="straight")
+			 {
+				 //set the dynamic fu legend
+				 var selectDynFuLegend = $(".dynFuLegend");
+				     d3.selectAll(selectDynFuLegend)
+					   .filter( function(d, i) { 
+						   var curDynFuTime = d.timestep; 
+						   for(var i=0; i<curDynFuTime.length; i++)
+						   {
+							   if( (curTimestep+1) == curDynFuTime[i])
+							   {return true;}
+						   }
+						   return false;
+					   })
+					.style("fill", function(d){return d.color;});
+
+				//set the brain voronoi diagram
+				var selectRoi = $(".outerVoronoi");
+				d3.selectAll(selectRoi)
+				  .style("fill", function(v) {var eleColorList = v.color.dynFu;  return eleColorList[curTimestep]; });
+
+				if( partialFuOn)
+				{
+					//set the timeline representation
+					var selectTimeline = $( ".timeline" );
+					d3.selectAll(selectTimeline)
+					.filter( function(curLine) { return (curLine.type!="trans") && (curLine.timestep==(curTimestep+1))? false:true ; })
+					.style("opacity", 0.15);	
+
+					d3.selectAll(selectTimeline)
+					.selectAll("path")
+					.style("stroke", function(curLine) { return curLine.color.dynFu;});				
+				}
+				else
+				{
+					//set the timeline representation
+					var selectTimeline = $( ".timeline" );
+					d3.selectAll(selectTimeline)
+					.filter( function(curLine) { return (curLine.type=="straight" && curLine.timestep==(curTimestep+1))? false:true ; })
+					.style("opacity", 0.15);	
+
+					d3.selectAll(selectTimeline)
+					.selectAll("path")
+					.style("stroke", function(curLine) { 
+					/*	var selectDynFuLegend = $(".dynFuLegend");
+						d3.selectAll(selectDynFuLegend)
+						  .style("opacity", function(d) { return (parseFloat(curLine.dynFu) == parseFloat(d.Indx))? 1:0.15;});*/
+
+						return curLine.color.dynFu; 
+						});					
+				}				  		  
+			 }
+			 else
+			 {
+				 //set dynamic FU legend
+				 var selectDynFuLegend = $(".dynFuLegend");
+				 d3.selectAll(selectDynFuLegend)
+				   .filter(function(d,i) {
+					   var curDynFuTime = d.timestep;
+					   for(var i=0; i<curDynFuTime.length; i++)
+					   {						   
+						   if( (curTimestep+1) == curDynFuTime[i] || ( curTimestep==curDynFuTime[i]))
+						   {return true;}
+					   }
+					   return false;
+				   })
+				   .style("fill", function(d) {return d.color;});
+
+				 //set the brain voronoi diagram
+				/***********************************************************************************************/	
+				var innerCell = $(".innerVoronoi");				 
+				d3.selectAll(innerCell) 
+				  .style("visibility", "visible")
+				  .style("fill", function(d) { var eleColorList = d.color.dynFu;  return eleColorList[curTimestep-1]; } );
+
+				var outerCell = $(".outerVoronoi");				 
+				d3.selectAll(outerCell) 
+				  .style("fill", function(d) { var eleColorList = d.color.dynFu;  return eleColorList[curTimestep]; } );			
+			/***********************************************************************************************/
+
+				/***********************************************************************************************/
+				//set the timeline representation
+				var selectTimeline = $(".timeline");
+				d3.selectAll(selectTimeline)   //select all the rest of the lines, except the one you are hovering on and drop their opacity
+				.filter( function(curLine) { 
+							if( curLine.timestep == curTimestep )
+							{
+								return false ; 
+							} 
+							else if( (curLine.timestep == curTimestep+1) && (curLine.type != "trans") ) 
+							{
+								return false ; 
+							}else
+							{
+								return true;
+							}
+						})
+				.selectAll("path")
+				.style("opacity",0.2);
+
+				//set the timeline representation
+				if(partialFuOn)
+				{
+					d3.selectAll(selectTimeline) 
+					.selectAll("path")
+					.style("stroke", function(d) { return (d.type=="voronoi")? "black":d.color.dynFu; } );					
+				}
+				else
+				{
+					d3.selectAll(selectTimeline) 
+					.selectAll("path")
+					.style("stroke", function(d) { return d.color.dynFu; } );
+				}
+	  				 
+			 }
+		 })
+	   .on("mouseout", function(d, i) { 
+			 var curTimestep = Math.ceil(i/2);			 
+			 if( d.type=="straight")
+			 {  
+				 //set the dynamic FU legend
+				 var selectDynFuLegend = $(".dynFuLegend");
+				 d3.selectAll(selectDynFuLegend).style("fill", "white");
+
+				//set the brain voronoi diagram
+				var selectRoi = $(".outerVoronoi");
+				d3.selectAll(selectRoi)
+				  .style("fill", function(v) { return v.color.roi; });
+
+				//set the timeline representation
+				var selectTimeline = $( ".timeline" );
+				d3.selectAll(selectTimeline)
+				  .style("opacity", function(curLine) { return (curLine.dynFu==0)? 0.5:1; });	
+
+				d3.selectAll(selectTimeline)
+				  .selectAll("path")
+				  .style("stroke", function(curLine) { 
+					  	  if(partialFuOn)
+							{
+								return (curLine.type=="voronoi")? "black":curLine.color.roi;
+							}
+							else
+							{return curLine.color.roi; }						  
+					  });				  		  
+			 }
+			 else
+			 {
+				 //set dynamic FU legend
+				 var selectDynFuLegend = $(".dynFuLegend");
+				 d3.selectAll(selectDynFuLegend)
+				   .style("fill", "white");
+
+
+				 //set the brain voronoi diagram
+				/***********************************************************************************************/	
+				var innerCell = $(".innerVoronoi");				 
+				d3.selectAll(innerCell) 
+				  .style("visibility", "hidden");
+
+				var outerCell = $(".outerVoronoi");				 
+				d3.selectAll(outerCell) 
+				  .style("fill", function(d) { return d.color.roi; } );			
+			/***********************************************************************************************/
+
+				/***********************************************************************************************/
+				//set the timeline representation
+				var selectTimeline = $(".timeline");
+				d3.selectAll(selectTimeline)   //select all the rest of the lines, except the one you are hovering on and drop their opacity
+				.filter( function(curLine) { 
+							if( curLine.timestep == curTimestep )
+							{
+								return false ; 
+							} 
+							else if( (curLine.timestep == curTimestep+1) && (curLine.type == "straight") ) 
+							{
+								return false ; 
+							}else
+							{
+								return true;
+							}
+						})
+				.selectAll("path")
+				.style("opacity", function(curLine) { return (curLine.dynFu==0)? 0.5:1; });
+
+				//set the timeline representation
+				d3.selectAll(selectTimeline)   //select all the rest of the lines, except the one you are hovering on and drop their opacity
+				  .selectAll("path")
+				  .style("stroke", function(d) { 
+					  if(partialFuOn)
+					  { return (d.type=="voronoi")? "black":d.color.roi; }
+					  else
+					  {return d.color.roi;}
+					});	  				 
+			 }
+		 });
+
+	//set text
+	svg.append("g").selectAll(".legend")
+	   .data(timeLegendInfo)
+	   .enter().append("g")
+	   .attr("class", function() { return "legend polygons " + "timeLegend"; })
+	   //.attr("id", function(d) {return "timestep" + d.Indx})
+	   .append("text")
+	   .attr("x", function(d, i) { 
+				 return (i+0.3)*width/(2*timeNum-1); 
+			 })
+	   .attr("y", height+40)
+	   .filter(function(d) {return d.type=="straight"? true:false;})
+	   .text(function(d, i) { return "t = " + (parseFloat(d.timestep)+1);})
+	   .style("font-family", "Verdana")
+	   //.style("text-anchor", "strat");	
+}
+
+
+function createRoiLegend() 
+{
+	var roiNum = 0;	
+	var roiColor = [] ;
+	var tmp = 0;
+	for(var i=0; i<brainInfo.length; i++)
+	{
+		if( roiNum<brainInfo[i].roiIndx ) 
+		{
+			roiNum = brainInfo[i].roiIndx; 			 
+		}
+	}
+	for(var i=0; i<roiNum; i++)
+	{
+		for(var j=0; j<brainInfo.length; j++)
+		{
+			if( i == (brainInfo[j].roiIndx-1) )
+			{
+				roiColor[i] = brainInfo[j].color.roi; 
+			}
+		}
+	}
+	
+
+	for(var i=0; i<roiNum; i++)
+	{
+		roiLegendInfo[i] = {
+			label: determineRoi(i),
+			roiIndx: i+1,
+			color: roiColor[i]
+		};
+	}
+
+	function determineRoi(i)
+	{
+		switch(i)
+		{
+			case 0: 
+				return "LT";
+			case 1:
+				return "Fp";
+			case 2:
+				return "F";
+			case 3:
+				return "C";
+			case 4:
+				return "P";
+			case 5:
+				return "O";
+			case 6:
+				return "RT";
+		}
+	}
+
+    brainSvg.append("g")
+	     .selectAll(".legend")	
+		 .data(roiLegendInfo)		 	 
+		 .enter()
+		 .append("g")		 
+		 .attr("class", function(d) { 
+			 	var multiClass = "polygons roiLegend ";
+				multiClass += d.label; 
+				multiClass += " roiIndx";
+				multiClass += d.roiIndx ; 
+
+				return multiClass;
+		 	})
+		 .append("rect")	 
+		 .attr("fill", function(d){  return d.color; })
+		 .attr("x", width/3+height/2+15)
+		 .attr("y", function(d, i) { 
+				 return i*(height/2-50)/roiNum; 
+			 })
+		 .attr("width", 20)
+		 .attr("height", (height/2-50)/roiNum)
+		 .on("mouseover", function(d, i) {
+			 var selectRoiIndx = d.roiIndx;
+
+			 //set the roi legend
+			 var selectRoiLegend = $(".roiLegend");
+			 d3.selectAll(selectRoiLegend)
+			   .filter(function(curRoi){ return ( selectRoiIndx == curRoi.roiIndx )? false:true; })
+			   .style("opacity", 0.15);
+
+			 //set the brain voronoi diagram
+			 var selectRoi = $(".outerVoronoi");
+			 d3.selectAll(selectRoi)
+			   .filter(function(curRoi){ return (selectRoiIndx==curRoi.roiIndx)? false:true; })
+			   .style("opacity", 0.15);
+
+		   //set the timeline representation
+		   var selectTimeline = $( ".timeline" );
+		   d3.selectAll(selectTimeline)
+			 .filter( function(curLine) { return (curLine.roiIndx==selectRoiIndx)? false:true ; })
+			 .style("opacity", 0.15);		 
+		 })
+		 .on("mouseout", function(d, i) {
+			 var selectRoiIndx = d.roiIndx;
+
+			 //set the roi legend
+			 var selectRoiLegend = $(".roiLegend");
+			 d3.selectAll(selectRoiLegend)
+			   .filter(function(curRoi){ return ( selectRoiIndx == curRoi.roiIndx )? false:true; })
+			   .style("opacity", 1);
+
+			 //set the brain voronoi diagram
+			 var selectRoi = $(".outerVoronoi");
+			 d3.selectAll(selectRoi)
+			   .filter(function(curRoi){ return (selectRoiIndx==curRoi.roiIndx)? false:true; })
+			   .style("opacity", 1);
+
+		   //set the timeline representation
+		   var selectTimeline = $( ".timeline" );
+		   d3.selectAll(selectTimeline)
+			 .filter( function(curLine) { return (curLine.roiIndx==selectRoiIndx)? false:true ; })
+			 .style("opacity", function(curLine) { return (curLine.dynFu==0)? 0.5:1; });
+		 });
+
+	//set text legend
+	brainSvg.append("g")
+	     .selectAll(".legend")
+		 .attr("class", ".legend")	
+		 .data(roiLegendInfo)		 	 
+		 .enter()
+		 .append("g")		 
+		 .append("text")
+		 .attr("class", "legend")	 
+		 .attr("x", width/3+height/2+35)
+		 .attr("y", function(d, i) { 
+				 return i*(height/2-50)/roiNum+20; 
+			 })
+		 .text(function(d) {return d.label; })
+		 .style("font-family", "Verdana");
+}
+
+function createDynFuLegend() 
+{
+	var dynFuNum = 0;
+	for(var i = 0; i<DynFuInd.length; i++)
+	{
+		var curStep = DynFuInd[i];
+		for(var j=0; j<curStep.length; j++)
+		{
+			if( dynFuNum < parseFloat(curStep[j]) )
+			{
+				dynFuNum = parseFloat(curStep[j]) ;
+			}
+		}
+	}
+	
+	for(var i=0; i<dynFuNum; i++)
+	{
+		for(var j=0; j<DynFuInd.length; j++)
+		{
+			for(var l=0; l<DynFuInd[j].length; l++)
+			{
+				if( (i+1)== parseFloat(DynFuInd[j][l]) )
+				{
+					dynFuLegendInfo[i] ={
+						Indx: i+1,
+						timestep: getTimestep(i+1),
+						color: DynFuColor[j][l]
+					}; 
+				}
+			}
+		}
+	}
+
+	function getTimestep(d)
+	{
+		var allTime = [];
+		for(var j=0; j<pfTimestep.length; j++)
+		{
+			if(pfDynFuIndx[j]==d) { allTime.push(pfTimestep[j]);}	
+		}
+		return allTime;
+	}
+
+
+	var dynFuLegWidth = width -25 - height/2 -width/3 -100;
+	var dynFuLegHeight = (height/2);
+	
+	dynFuRad = d3.min([dynFuLegWidth/dynFuNum, dynFuLegHeight]);
+	dynFuRad = dynFuRad/2; 
+	brainSvg.append("g").selectAll("circle")
+	   .data(dynFuLegendInfo)
+	   .enter().append("circle")	   
+	   /*.style("fill", function(d){ return d.color; })*/
+	   .attr("class", function(d) { 
+		     var multiClass = "legend polygons "; 
+			 multiClass+= "dynFuLegend"; 
+			 return multiClass;
+		   })
+		.attr("id", function(d) {return "DynamicFULegend" + d.Indx; })
+		.attr("cx", function(d,i) { return  25+height/2+width/3+100 + (i-1)*d3.max([dynFuLegWidth/dynFuNum, dynFuRad*2]); } )
+		.attr("cy", function(d, i) { return (height/2)/2-dynFuRad; })
+		.attr("r", dynFuRad)
+		.style("fill", "white")		
+		.on("mouseover", function(d, i) {
+			 var curDynFu = d.Indx;  
+			 
+			 //set dynamic FU legend
+			 var selectDynFuLegend = $(".dynFuLegend");
+			 d3.selectAll(selectDynFuLegend)
+			   .filter( function(curLine) { return (  parseFloat(curLine.Indx) == parseFloat(curDynFu) )? false:true ; })
+			   .style("opacity", 0.15);
+
+					//set the timeline representation
+					var selectTimeline = $( ".timeline" );
+					d3.selectAll(selectTimeline)
+					.filter( function(curLine) { return (  parseFloat(curLine.dynFu) == parseFloat(curDynFu) )? false:true ; })
+					.style("opacity", 0.15);	
+				})
+		 .on("mouseout", function(d, i) {
+					var curDynFu = d.Indx; 
+
+					//set dynamic FU legend
+					var selectDynFuLegend = $(".dynFuLegend");
+					d3.selectAll(selectDynFuLegend)
+					  .filter( function(curLine) { return (  parseFloat(curLine.Indx) == parseFloat(curDynFu) )? false:true ; })
+					  .style("opacity", 1);
+
+					//set the timeline representation
+					var selectTimeline = $( ".timeline" );
+					d3.selectAll(selectTimeline)
+					.filter( function(curLine) { return (  parseFloat(curLine.dynFu) == parseFloat(curDynFu) )? false:true ; })
+					.style("opacity", function(curLine) { return (curLine.dynFu==0)? 0.5:1; });;	
+				});	
+
+//text Dynamic FU index
+	brainSvg.append("g").append("text")
+	   .attr("class","legend polygons ")
+		.attr("x", 25+height/2+width/3+150)
+		.attr("y", (height/2)/2-3*dynFuRad )		
+		.text("Dynamic FU index:")
+		.style("font-family", "Verdana")
+		.attr("fill", "black")	
+		.style("text-anchor", "middle")
+		.style("font-size", "20px");
+
+
+	//set legent text
+	brainSvg.append("g").selectAll("text")
+	   .data(dynFuLegendInfo)
+	   .enter().append("text")
+	   .attr("class", function(d) { 
+		     var multiClass = "legend polygons "; 
+			 multiClass+= "dynFuLegend"; 
+			 return multiClass;
+		   })
+		.attr("id", function(d) {return "DynamicFULegendTxt" + d.Indx; })
+		.attr("x", function(d,i) { return  25+height/2+width/3+100 + (i-1)*d3.max([dynFuLegWidth/dynFuNum, dynFuRad*2]); } )
+		.attr("y", function(d, i) { return (height/2)/2-dynFuRad; })		
+		.text(function(d){ return d.Indx; })
+		.style("font-family", "Verdana")
+		.attr("fill", "black")	
+		.style("text-anchor", "middle")	
+		.on("mouseover", function(d, i) {
+			 var curDynFu = d.Indx;  
+			 
+			 //set dynamic FU legend
+			 var selectDynFuLegend = $(".dynFuLegend");
+			 d3.selectAll(selectDynFuLegend)
+			   .filter( function(curLine) { return (  parseFloat(curLine.Indx) == parseFloat(curDynFu) )? false:true ; })
+			   .style("opacity", 0.15);
+
+					//set the timeline representation
+					var selectTimeline = $( ".timeline" );
+					d3.selectAll(selectTimeline)
+					.filter( function(curLine) { return (  parseFloat(curLine.dynFu) == parseFloat(curDynFu) )? false:true ; })
+					.style("opacity", 0.15);	
+				})
+		 .on("mouseout", function(d, i) {
+					var curDynFu = d.Indx; 
+
+					//set dynamic FU legend
+					var selectDynFuLegend = $(".dynFuLegend");
+					d3.selectAll(selectDynFuLegend)
+					  .filter( function(curLine) { return (  parseFloat(curLine.Indx) == parseFloat(curDynFu) )? false:true ; })
+					  .style("opacity", 1);
+
+					//set the timeline representation
+					var selectTimeline = $( ".timeline" );
+					d3.selectAll(selectTimeline)
+					.filter( function(curLine) { return (  parseFloat(curLine.dynFu) == parseFloat(curDynFu) )? false:true ; })
+					.style("opacity", function(curLine) { return (curLine.dynFu==0)? 0.5:1; });;	
+				});	
+
+}
+/***********************************************************************************/
+
+</script>
+</body>
