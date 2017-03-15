@@ -1299,7 +1299,13 @@ function createTimeLegend()
 			 }
 		 })
 	   .on("mouseout", function(d, i) { 
-			 var curTimestep = Math.ceil(i/2);			 
+			 var curTimestep = Math.ceil(i/2);	
+		
+		   var selectTimeline = $( ".timeline" );
+		   d3.selectAll(selectTimeline)
+			 .filter( function(curLine) { return (curLine.roiIndx==selectRoiIndx)? false:true ; })
+			 .style("opacity", function(curLine) { return (curLine.dynFu==0)? 0.5:1; });
+		
 			 if( d.type=="straight")
 			 {  
 				 //set the dynamic FU legend
