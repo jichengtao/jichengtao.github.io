@@ -115,11 +115,6 @@ var partialFu = readTextFile("partialFU.txt");
 
 //define the approx. number of x scale ticks
 var xscaleticks = 0;
-
-//defines a function to be used to append the title to the tooltip.  you can set how you want it to display here.
-var maketip = function (d) {			               
-			   var tip = '<p class="tip3">' + d.name + '<p class="tip1">' + NumbType(d.value) + '</p> <p class="tip3">'+  formatDate(d.x)+'</p>';
-      		   return tip;}
 				       		   
 //create an brain voronoi diagram
 var brainSvg = d3.select("#brain").append("svg")	 
