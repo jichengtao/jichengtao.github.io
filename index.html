@@ -128,15 +128,9 @@ var svg = d3.select("#graphic").append("svg")
     .attr("height", height + margin.top + margin.bottom)
     .append("g")
 	.attr("id", "timelineRep");
-	//.attr("transform", "translate(" + margin.left + "," + 0 + ")"); 
-	//.attr("transform", "translate(" + margin.left + "," + margin.top + ")"); 
 
 height += margin.bottom ;
-width  += margin.left ;   
-    
-/*// force data to update when menu is changed    
-var menu = d3.select("#menu select")
-    .on("change", change);  */  
+width  += margin.left ;    
 			    
 //suck in the data, store it in a value called formatted, run the redraw function
 d3.csv("eleStaticInfo.csv", function(data) {
@@ -144,9 +138,9 @@ d3.csv("eleStaticInfo.csv", function(data) {
 							        redraw();
     							  });
 
-// all the meat goes in the redraw function
+//  redraw function
 function redraw() { 
-	//make a rectangle so there is something to click on
+	 
 	svg.append("svg:rect")
 		.attr("width", width)
 		.attr("height", height)
@@ -358,7 +352,6 @@ function redraw() {
 		}
 		else
 		{
-		//append a g tag for each line and set of tooltip circles and give it a unique ID based on the column name of the data
 		var thegraphEnter=thegraph.enter().append("g")
 			.attr("clip-path", "url(#clip)")	
 			.attr("class", function(d){
@@ -394,58 +387,14 @@ function redraw() {
 						.range(d3.range(1, d.pos.length+1));
 					return function(t){ return line(d.pos.slice(0, interpolate(t))); };
 				});
-		}
-		
-/*      	.transition()
-      	.duration(2000)
-      	.attrTween('d',function (d){
-			var interpolate = d3.scale.quantile()
-				.domain([0,1])
-				.range(d3.range(1, d.pos.length+1));
-			return function(t){ return line(d.pos.slice(0, interpolate(t))); };
-		});*/
+		}		
 /***************************************************************************/	     
-  
-	//then append some 'nearly' invisible circles at each data point  
-/*	thegraph.selectAll("circle")
-		.data( function(d) {return(d.value);} )
-		.enter()
-		.append("circle")
-			.attr("class","tipcircle")
-			.attr("cx", function(d,i){return x(d.x)})
-			.attr("cy",function(d,i){return y(d.y)})
-			.attr("r",12)
-			.style('opacity', 1e-6)//1e-6
-			.attr ("title", maketip);*/
-/*	thegraph.selectAll("circle")
-		.data( function(d) {return(d.pos[0]);} )
-		.enter()
-		.append("circle")
-			.attr("class","tipcircle")
-			.attr("cx", function(d,i){return x(d.x)})
-			.attr("cy",function(d,i){return y(d.y)})
-			.attr("r",12)
-			.style('opacity', 1e-6)
-			//.attr ("title", maketip);*/
-
    //create the dynamic FU legend
    createDynFuLegend();
 
  	// set variable for updating visualization
     var thegraphUpdate = d3.transition(thegraph);
-    
-/*    // change values of path and then the circles to those of the new series
-    thegraphUpdate.select("path")
-    	   .attr("d", function(d, i) {
-			   //must be a better place to put this, but this works for now
-			   lastvalues[i]=d.pos[d.pos.length-1].value;  
-			   lastvalues.sort(function (a,b){return b-a});
-			   /*legendscale.domain(lastvalues);*/
-//			   return line(d.pos); 
-//			});*/
-      
-
- 	 // update the axes,   
+    // update the axes,   
     d3.transition(svg).select(".y.axis")
     	.call(yAxis);   
           
