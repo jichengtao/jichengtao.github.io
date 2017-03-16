@@ -1373,7 +1373,12 @@ function createTimeLegend()
 					  {return d.color.roi;}
 					});	  				 
 			 }
-		 });
+		 
+					//set the timeline representation
+				var selectTimeline = $( ".timeline" );
+				d3.selectAll(selectTimeline)
+				  .style("opacity", function(curLine) { return (curLine.dynFu==0)? 0.5:1; });	
+	});
 
 	//set text
 	svg.append("g").selectAll(".legend")
