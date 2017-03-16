@@ -992,13 +992,13 @@ function timelineMouseOut(d)
 			.style("stroke-width", function(d) { 
 					if(d.type == "straight") {return 4;}
 					if(d.type == "trans") {return 2;}
-					if(d.type == "voronoi")
-					{
-						if(d.on==1)
-						{return 4;}
-						else
-						{return 0.5;}
-					}
+					//if(d.type == "voronoi")
+					//{
+					//	if(d.on==1)
+					//	{return 4;}
+					//	else
+					//	{return 0.5;}
+					//}
 				})
 			/*********************************************************************************/
 			
@@ -1499,13 +1499,13 @@ function createDynFuLegend()
 					.style("stroke-width", function(curLine) { 
 						       if(d.type == "straight") {return 4;}
 								if(d.type == "trans") {return 2;}
-								if(d.type == "voronoi")
-								{
-									if(d.on==1)
-									{return 4;}
-									else
-									{return 0.5;}
-								}
+								//if(d.type == "voronoi")
+								//{
+								//	if(d.on==1)
+								//	{return 4;}
+								//	else
+								//	{return 0.5;}
+								//}
 						 });					
 				});	
 //text Dynamic FU index
@@ -1570,13 +1570,13 @@ function createDynFuLegend()
 					.style("stroke-width", function(curLine) { 
 						       if(d.type == "straight") {return 4;}
 								if(d.type == "trans") {return 2;}
-								if(d.type == "voronoi")
-								{
-									if(d.on==1)
-									{return 4;}
-									else
-									{return 0.5;}
-								}
+								//if(d.type == "voronoi")
+								//{
+								//	if(d.on==1)
+								//	{return 4;}
+								//	else
+								//	{return 0.5;}
+								//}
 						 });	
 				});	
 }
