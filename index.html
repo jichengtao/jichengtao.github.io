@@ -201,9 +201,6 @@ function redraw() {
 	}
 	 
    /******************************************************************************************************/
-
-	//make an empty variable to stash the last values into so i can sort the legend
-	var lastvalues=[];
 	//will draw the line
 	var line = d3.svg.line()
 		.x(function(d) { return x(d.x); })
